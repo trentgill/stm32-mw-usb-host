@@ -253,7 +253,7 @@ HID_HandleTypeDef;
 #define HID_BOOT_CODE                                 0x01U
 
 // not strictly boot codes here! these are just helpers for generic devices
-#define HID_BOOT_CODE                                 0x01U
+#define HID_NONE_BOOT_CODE                            0x00U
 #define HID_KEYBRD_BOOT_CODE                          0x01U
 #define HID_MOUSE_BOOT_CODE                           0x02U
 

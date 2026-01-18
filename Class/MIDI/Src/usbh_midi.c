@@ -257,7 +257,7 @@ static void MIDI_ProcessReception(USBH_HandleTypeDef *phost){
           MIDI_Handle->data_rx_state = MIDI_RECEIVE_DATA;
         } else {
           MIDI_Handle->data_rx_state = MIDI_IDLE;
-          USBH_MIDI_ReceiveCallback(phost);
+          USBH_MIDI_ReceiveCallback(phost, length);
         }
       }
       break;
@@ -271,6 +271,6 @@ __weak void USBH_MIDI_TransmitCallback(USBH_HandleTypeDef *phost){
   UNUSED(phost);
 }
 
-__weak void USBH_MIDI_ReceiveCallback(USBH_HandleTypeDef *phost){
+__weak void USBH_MIDI_ReceiveCallback(USBH_HandleTypeDef *phost, uint32_t length){
   UNUSED(phost);
 }
