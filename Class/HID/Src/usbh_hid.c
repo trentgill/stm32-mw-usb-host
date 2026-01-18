@@ -143,7 +143,9 @@ static USBH_StatusTypeDef USBH_HID_InterfaceInit(USBH_HandleTypeDef *phost)
   uint8_t num = 0U;
   uint8_t interface;
 
-  interface = USBH_FindInterface(phost, phost->pActiveClass->ClassCode, HID_BOOT_CODE, 0xFFU);
+  // set subclass to 0xFF to force a match, as HID subclass is undefined in many cases
+  // a setting of 1 infers "BOOT MODE" (for PC BIOS integration) but we don't care!
+  interface = USBH_FindInterface(phost, phost->pActiveClass->ClassCode, 0xFF, 0xFFU);
 
   if ((interface == 0xFFU) || (interface >= USBH_MAX_NUM_INTERFACES)) /* No Valid Interface */
   {
@@ -185,6 +187,11 @@ static USBH_StatusTypeDef USBH_HID_InterfaceInit(USBH_HandleTypeDef *phost)
   {
     USBH_UsrLog("Mouse device found!");
     HID_Handle->Init = USBH_HID_MouseInit;
+  }
+  else if (phost->device.CfgDesc.Itf_Desc[interface].bInterfaceProtocol  == HID_NONE_BOOT_CODE)
+  {
+    USBH_UsrLog("HID device with no protocol found!");
+    HID_Handle->Init = USBH_HID_NoneInit;
   }
   else
   {
@@ -321,6 +328,7 @@ static USBH_StatusTypeDef USBH_HID_ClassRequest(USBH_HandleTypeDef *phost)
       classReqStatus = USBH_HID_GetHIDReportDescriptor(phost, HID_Handle->HID_Desc.wItemLength);
       if (classReqStatus == USBH_OK)
       {
+        printf("TODO: parse device.data to discover type of device\n\r");
         /* The descriptor is available in phost->device.Data */
         HID_Handle->ctl_state = USBH_HID_REQ_SET_IDLE;
       }

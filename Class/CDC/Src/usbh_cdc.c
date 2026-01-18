@@ -156,11 +156,13 @@ static USBH_StatusTypeDef USBH_CDC_InterfaceInit(USBH_HandleTypeDef *phost)
   CDC_HandleTypeDef *CDC_Handle;
 
   interface = USBH_FindInterface(phost, COMMUNICATION_INTERFACE_CLASS_CODE,
-                                   ABSTRACT_CONTROL_MODEL, COMMON_AT_COMMAND);
+                                   ABSTRACT_CONTROL_MODEL, 0xFF); // any protocol will do
+                                   // ABSTRACT_CONTROL_MODEL, NO_CLASS_SPECIFIC_PROTOCOL_CODE);
+                                   // ABSTRACT_CONTROL_MODEL, COMMON_AT_COMMAND);
 
   if ((interface == 0xFFU) || (interface >= USBH_MAX_NUM_INTERFACES)) /* No Valid Interface */
   {
-    USBH_DbgLog("%s Cannot Find the interface for Communication Interface Class.", phost->pActiveClass->Name);
+    USBH_DbgLog("Cannot Find the interface for Communication Interface Class. %s", phost->pActiveClass->Name);
     return USBH_FAIL;
   }
 
@@ -205,7 +207,7 @@ static USBH_StatusTypeDef USBH_CDC_InterfaceInit(USBH_HandleTypeDef *phost)
 
   if ((interface == 0xFFU) || (interface >= USBH_MAX_NUM_INTERFACES)) /* No Valid Interface */
   {
-    USBH_DbgLog("%s Cannot Find the interface for Data Interface Class.", phost->pActiveClass->Name);
+    USBH_DbgLog("Cannot Find the interface for Data Interface Class. %s", phost->pActiveClass->Name);
     return USBH_FAIL;
   }
 

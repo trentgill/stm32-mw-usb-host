@@ -84,6 +84,13 @@ static void USBH_Process_OS(void *argument);
 #endif /* (osCMSIS < 0x20000U) */
 #endif /* (USBH_USE_OS == 1U) */
 
+static int _matched_interface = -1;
+
+#define _CDC 0x02
+#define _AUDIO 0x01
+#define _HID 0x03
+#define _MAX_CLASS _HID
+
 
 /**
   * @brief  HCD_Init
@@ -189,6 +196,7 @@ USBH_StatusTypeDef USBH_DeInit(USBH_HandleTypeDef *phost)
   if (phost->pData != NULL)
   {
     (void)USBH_LL_Stop(phost);
+    (void)USBH_LL_DeInit(phost);
   }
 
 #if (USBH_USE_OS == 1U)
@@ -329,7 +337,7 @@ USBH_StatusTypeDef USBH_SelectInterface(USBH_HandleTypeDef *phost, uint8_t inter
   */
 uint8_t USBH_GetActiveClass(USBH_HandleTypeDef *phost)
 {
-  return (phost->device.CfgDesc.Itf_Desc[0].bInterfaceClass);
+  return (phost->device.CfgDesc.Itf_Desc[_matched_interface].bInterfaceClass);
 }
 
 
@@ -471,7 +479,6 @@ USBH_StatusTypeDef USBH_ReEnumerate(USBH_HandleTypeDef *phost)
 USBH_StatusTypeDef USBH_Process(USBH_HandleTypeDef *phost)
 {
   __IO USBH_StatusTypeDef status = USBH_FAIL;
-  uint8_t idx = 0U;
 
   /* check for Host pending port disconnect event */
   if ((phost->device.is_disconnected == 1U)
@@ -606,6 +613,7 @@ USBH_StatusTypeDef USBH_Process(USBH_HandleTypeDef *phost)
       /* user callback for end of device basic enumeration */
       if (phost->pUser != NULL)
       {
+        USBH_UsrLog("user callback at end of device enum");
         phost->pUser(phost, HOST_USER_SELECT_CONFIGURATION);
         phost->gState = HOST_SET_CONFIGURATION;
 
@@ -662,6 +670,7 @@ USBH_StatusTypeDef USBH_Process(USBH_HandleTypeDef *phost)
 
     case HOST_CHECK_CLASS:
 
+
       if (phost->ClassNumber == 0U)
       {
         USBH_UsrLog("No Class has been registered.");
@@ -670,33 +679,57 @@ USBH_StatusTypeDef USBH_Process(USBH_HandleTypeDef *phost)
       {
         phost->pActiveClass = NULL;
 
-        for (idx = 0U; idx < USBH_MAX_NUM_SUPPORTED_CLASS; idx++)
-        {
-          if (phost->pClass[idx]->ClassCode == phost->device.CfgDesc.Itf_Desc[0].bInterfaceClass)
-          {
-            phost->pActiveClass = phost->pClass[idx];
+        // because stm32 usb driver doesn't support multiple simultaneous classes
+        // we are just choosing the most powerful option that is available from the hosted device
+        const int midi_subclass = 0x03;
+
+        // values are negative so unmatched classes are lowest priority (ie zero)
+        const int class_heirarchy[4] = {[_CDC] = -3, [_AUDIO] = -2, [_HID] = -1};
+        // FIXME class 0xA is "CDC-Data" which might be what we want for crow, not 2.2
+
+        _matched_interface = -1;
+        int top_result = 0xff;
+        for(int i=0; i<USBH_MAX_NUM_INTERFACES; i++){
+          USBH_InterfaceDescTypeDef* itf = &(phost->device.CfgDesc.Itf_Desc[i]);
+          int class = itf->bInterfaceClass;
+          // printf("c.s[%i]: %i.%i\n\r",i,class,itf->bInterfaceSubClass);
+          if(class <= _MAX_CLASS){ // ignore classes we don't understand
+            if(class_heirarchy[class] < top_result){
+              top_result = class_heirarchy[class];
+              _matched_interface = i;
+            } else if((class_heirarchy[class] == top_result) && (top_result == _AUDIO)){
+              int subclass = itf->bInterfaceSubClass;
+              if(subclass == midi_subclass){ // prefer midi subclass when audio device connected
+                _matched_interface = i;
+              }
+            }
+          }
+        }
+        // printf("match_itf: %i\n\r",_matched_interface);
+
+        // we now know the interface we want to match
+        // so we must search to find it in the usb class list
+        int classix = 0;
+        for(classix=0; classix<USBH_MAX_NUM_SUPPORTED_CLASS; classix++){
+          // printf("hostclass[%i]: %i\n\r", classix, phost->pClass[classix]->ClassCode);
+          if(phost->pClass[classix]->ClassCode == phost->device.CfgDesc.Itf_Desc[_matched_interface].bInterfaceClass){
+            phost->pActiveClass = phost->pClass[classix];
             break;
           }
         }
 
-        if (phost->pActiveClass != NULL)
-        {
-          if (phost->pActiveClass->Init(phost) == USBH_OK)
-          {
+        if (phost->pActiveClass != NULL){
+          if (phost->pActiveClass->Init(phost) == USBH_OK){
             phost->gState = HOST_CLASS_REQUEST;
             USBH_UsrLog("%s class started.", phost->pActiveClass->Name);
 
             /* Inform user that a class has been activated */
             phost->pUser(phost, HOST_USER_CLASS_SELECTED);
-          }
-          else
-          {
+          } else {
             phost->gState = HOST_ABORT_STATE;
             USBH_UsrLog("Device not supporting %s class.", phost->pActiveClass->Name);
           }
-        }
-        else
-        {
+        } else {
           phost->gState = HOST_ABORT_STATE;
           USBH_UsrLog("No registered class for this device.");
         }
@@ -796,6 +829,9 @@ USBH_StatusTypeDef USBH_Process(USBH_HandleTypeDef *phost)
   * @param  phost: Host Handle
   * @retval USBH_Status
   */
+
+static char _mfgstring[64] = "undefined";
+static char _productstring[64] = "undefined";
 static USBH_StatusTypeDef USBH_HandleEnum(USBH_HandleTypeDef *phost)
 {
   USBH_StatusTypeDef Status = USBH_BUSY;
@@ -1000,6 +1036,7 @@ static USBH_StatusTypeDef USBH_HandleEnum(USBH_HandleTypeDef *phost)
         {
           /* User callback for Manufacturing string */
           USBH_UsrLog("Manufacturer : %s", (char *)(void *)phost->device.Data);
+          strcpy(_mfgstring, (char*)(void*)phost->device.Data);
           phost->EnumState = ENUM_GET_PRODUCT_STRING_DESC;
 
 #if (USBH_USE_OS == 1U)
@@ -1009,6 +1046,7 @@ static USBH_StatusTypeDef USBH_HandleEnum(USBH_HandleTypeDef *phost)
         else if (ReqStatus == USBH_NOT_SUPPORTED)
         {
           USBH_UsrLog("Manufacturer : N/A");
+          strcpy(_mfgstring, "not supported");
           phost->EnumState = ENUM_GET_PRODUCT_STRING_DESC;
 
 #if (USBH_USE_OS == 1U)
@@ -1022,6 +1060,7 @@ static USBH_StatusTypeDef USBH_HandleEnum(USBH_HandleTypeDef *phost)
       }
       else
       {
+        strcpy(_mfgstring, "query failed");
         USBH_UsrLog("Manufacturer : N/A");
         phost->EnumState = ENUM_GET_PRODUCT_STRING_DESC;
 
@@ -1041,11 +1080,13 @@ static USBH_StatusTypeDef USBH_HandleEnum(USBH_HandleTypeDef *phost)
         {
           /* User callback for Product string */
           USBH_UsrLog("Product : %s", (char *)(void *)phost->device.Data);
+          strcpy(_productstring, (char*)(void*)phost->device.Data);
           phost->EnumState = ENUM_GET_SERIALNUM_STRING_DESC;
         }
         else if (ReqStatus == USBH_NOT_SUPPORTED)
         {
           USBH_UsrLog("Product : N/A");
+          strcpy(_productstring, "not supported");
           phost->EnumState = ENUM_GET_SERIALNUM_STRING_DESC;
 
 #if (USBH_USE_OS == 1U)
@@ -1060,6 +1101,7 @@ static USBH_StatusTypeDef USBH_HandleEnum(USBH_HandleTypeDef *phost)
       else
       {
         USBH_UsrLog("Product : N/A");
+        strcpy(_productstring, "query failed");
         phost->EnumState = ENUM_GET_SERIALNUM_STRING_DESC;
 
 #if (USBH_USE_OS == 1U)
@@ -1103,6 +1145,13 @@ static USBH_StatusTypeDef USBH_HandleEnum(USBH_HandleTypeDef *phost)
   return Status;
 }
 
+char* USBH_GetMfgString(void){
+  return _mfgstring;
+}
+
+char* USBH_GetProductString(void){
+  return _productstring;
+}
 
 /**
   * @brief  USBH_LL_SetTimer

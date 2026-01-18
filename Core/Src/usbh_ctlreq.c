@@ -451,14 +451,14 @@ static USBH_StatusTypeDef USBH_ParseCfgDesc(USBH_HandleTypeDef *phost, uint8_t *
   }
 
   /* Parse configuration descriptor */
-  cfg_desc->bLength             = *(uint8_t *)(buf + 0U);
-  cfg_desc->bDescriptorType     = *(uint8_t *)(buf + 1U);
-  cfg_desc->wTotalLength        = MIN(((uint16_t) LE16(buf + 2U)), ((uint16_t)USBH_MAX_SIZE_CONFIGURATION));
-  cfg_desc->bNumInterfaces      = *(uint8_t *)(buf + 4U);
-  cfg_desc->bConfigurationValue = *(uint8_t *)(buf + 5U);
-  cfg_desc->iConfiguration      = *(uint8_t *)(buf + 6U);
-  cfg_desc->bmAttributes        = *(uint8_t *)(buf + 7U);
-  cfg_desc->bMaxPower           = *(uint8_t *)(buf + 8U);
+  cfg_desc->bLength             = *(uint8_t *)(buf + 0U); // 9
+  cfg_desc->bDescriptorType     = *(uint8_t *)(buf + 1U); // 2
+  cfg_desc->wTotalLength        = MIN(((uint16_t) LE16(buf + 2U)), ((uint16_t)USBH_MAX_SIZE_CONFIGURATION)); // 133
+  cfg_desc->bNumInterfaces      = *(uint8_t *)(buf + 4U); // 3
+  cfg_desc->bConfigurationValue = *(uint8_t *)(buf + 5U); // 1
+  cfg_desc->iConfiguration      = *(uint8_t *)(buf + 6U); // 0
+  cfg_desc->bmAttributes        = *(uint8_t *)(buf + 7U); // 128
+  cfg_desc->bMaxPower           = *(uint8_t *)(buf + 8U); // 250
 
   if (length > USB_CONFIGURATION_DESC_SIZE)
   {
@@ -552,6 +552,9 @@ static void USBH_ParseInterfaceDesc(USBH_InterfaceDescTypeDef *if_descriptor, ui
   if_descriptor->bInterfaceSubClass = *(uint8_t *)(buf + 6U);
   if_descriptor->bInterfaceProtocol = *(uint8_t *)(buf + 7U);
   if_descriptor->iInterface         = *(uint8_t *)(buf + 8U);
+  // printf("Parse Class: %i\n\r", if_descriptor->bInterfaceClass);
+  // printf("Parse SubClass: %i\n\r", if_descriptor->bInterfaceSubClass);
+  // printf("Parse Protocol: %i\n\r", if_descriptor->bInterfaceProtocol);
 }
 
 

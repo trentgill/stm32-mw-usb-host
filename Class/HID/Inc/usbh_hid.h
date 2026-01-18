@@ -28,6 +28,7 @@ extern "C" {
 #include "usbh_core.h"
 #include "usbh_hid_mouse.h"
 #include "usbh_hid_keybd.h"
+#include "usbh_hid_none.h"
 
 /** @addtogroup USBH_LIB
   * @{
@@ -249,6 +250,9 @@ HID_HandleTypeDef;
 #define USB_HID_CLASS                                 0x03U
 
 /* Interface Descriptor field values for HID Boot Protocol */
+#define HID_BOOT_CODE                                 0x01U
+
+// not strictly boot codes here! these are just helpers for generic devices
 #define HID_BOOT_CODE                                 0x01U
 #define HID_KEYBRD_BOOT_CODE                          0x01U
 #define HID_MOUSE_BOOT_CODE                           0x02U
