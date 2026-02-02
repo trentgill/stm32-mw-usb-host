@@ -176,8 +176,8 @@ USBH_StatusTypeDef USBH_MIDI_Receive(USBH_HandleTypeDef *phost, uint8_t *pbuff, 
   USBH_StatusTypeDef Status = USBH_BUSY;
   MIDI_HandleTypeDef *MIDI_Handle = (MIDI_HandleTypeDef *) phost->pActiveClass->pData;
   if ((MIDI_Handle->state == MIDI_IDLE_STATE) || (MIDI_Handle->state == MIDI_TRANSFER_DATA)){
-    MIDI_Handle->pRxData = pbuff;
-    MIDI_Handle->RxDataLength = length;
+    MIDI_Handle->pRxData = pbuff; // location of destination buffer
+    MIDI_Handle->RxDataLength = length; // size of destination buffer (not length of data received)
     MIDI_Handle->state = MIDI_TRANSFER_DATA;
     MIDI_Handle->data_rx_state = MIDI_RECEIVE_DATA;
     Status = USBH_OK;
