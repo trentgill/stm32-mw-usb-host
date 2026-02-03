@@ -1,5 +1,8 @@
 #include "usbh_midi.h"
 
+// TODO: a bunch of this is no longer called
+// clean it up & document how the interface needs to be implemented to work.
+
 static USBH_StatusTypeDef USBH_MIDI_InterfaceInit(USBH_HandleTypeDef *phost);
 static USBH_StatusTypeDef USBH_MIDI_InterfaceDeInit(USBH_HandleTypeDef *phost);
 static USBH_StatusTypeDef USBH_MIDI_Process(USBH_HandleTypeDef *phost);
@@ -133,7 +136,6 @@ static USBH_StatusTypeDef USBH_MIDI_Process(USBH_HandleTypeDef *phost){
 
     case MIDI_TRANSFER_DATA:
       MIDI_ProcessTransmission(phost);
-      // MIDI_ProcessReception(phost);
       break;
 
     case MIDI_ERROR_STATE:
@@ -196,6 +198,22 @@ void USBH_MIDI_StartReception(USBH_HandleTypeDef *phost, uint8_t* pbuff, uint32_
                              MIDI_Handle->InPipe);
   MIDI_Handle->data_rx_state = MIDI_RECEIVE_DATA_WAIT;
 }
+
+void USBH_MIDI_Retry(USBH_HandleTypeDef* phost){
+  HCD_HandleTypeDef* hhcd = (HCD_HandleTypeDef*)phost->pData;
+  MIDI_HandleTypeDef* MIDI_Handle = (MIDI_HandleTypeDef*)phost->pActiveClass->pData;
+
+  MIDI_Handle->pRxData = _rx_buffer;
+  MIDI_Handle->RxDataLength = _rx_buf_len;
+  MIDI_Handle->state = MIDI_TRANSFER_DATA;
+  MIDI_Handle->data_rx_state = MIDI_RECEIVE_DATA;
+  (void)USBH_BulkReceiveData(phost,
+                             MIDI_Handle->pRxData,
+                             MIDI_Handle->InEpSize, // should be able to submit ->RxDataLength
+                             MIDI_Handle->InPipe);
+  MIDI_Handle->data_rx_state = MIDI_RECEIVE_DATA_WAIT;
+}
+
 
 USBH_StatusTypeDef USBH_MIDI_Receive(USBH_HandleTypeDef *phost, uint8_t *pbuff, uint32_t length){
   USBH_StatusTypeDef Status = USBH_BUSY;
@@ -273,20 +291,9 @@ static void URB_Done(USBH_HandleTypeDef* phost, uint32_t length){
   } else {
     MIDI_Handle->data_rx_state = MIDI_IDLE;
     int total_length = _rx_buf_len - MIDI_Handle->RxDataLength;
-    if(total_length > 0){
-      printf("total_length %i\n\r", total_length);
-    }
     USBH_MIDI_ReceiveCallback(phost, total_length);
-    // submit next URB
-    MIDI_Handle->pRxData = _rx_buffer;
-    MIDI_Handle->RxDataLength = _rx_buf_len;
-    MIDI_Handle->state = MIDI_TRANSFER_DATA;
-    MIDI_Handle->data_rx_state = MIDI_RECEIVE_DATA;
-    (void)USBH_BulkReceiveData(phost,
-                               MIDI_Handle->pRxData,
-                               MIDI_Handle->InEpSize, // should be able to submit ->RxDataLength
-                               MIDI_Handle->InPipe);
-    MIDI_Handle->data_rx_state = MIDI_RECEIVE_DATA_WAIT;
+    // DONT submit URB immediately
+    // instead wait for 1ms timer to resubmit
   }
 }
 
@@ -319,10 +326,6 @@ static void MIDI_ProcessReception(USBH_HandleTypeDef *phost){
 
 void USBH_MIDI_URBDoneCallback(int chnum, int xfer_count){
   if(chnum == in_pipe_number){
-// debug_set(Debug_CPU, 1);
-// debug_set(Debug_CPU, 0);
-// debug_set(Debug_L_R, 1);
-// debug_set(Debug_L_R, 0);
     URB_Done(_phost_handle, xfer_count);
   }
 }
