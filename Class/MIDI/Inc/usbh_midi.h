@@ -128,3 +128,5 @@ uint16_t USBH_MIDI_GetLastReceivedDataSize(USBH_HandleTypeDef *phost);
 USBH_StatusTypeDef USBH_MIDI_Stop(USBH_HandleTypeDef *phost);
 void USBH_MIDI_TransmitCallback(USBH_HandleTypeDef *phost);
 void USBH_MIDI_ReceiveCallback(USBH_HandleTypeDef *phost, uint32_t length);
+void USBH_MIDI_URBDoneCallback(int chnum, int xfer_count);
+void USBH_MIDI_StartReception(USBH_HandleTypeDef *phost, uint8_t* pbuff, uint32_t length);
