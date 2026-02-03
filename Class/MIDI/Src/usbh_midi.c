@@ -9,7 +9,6 @@ static USBH_StatusTypeDef USBH_MIDI_Process(USBH_HandleTypeDef *phost);
 static USBH_StatusTypeDef USBH_MIDI_SOFProcess(USBH_HandleTypeDef *phost);
 static USBH_StatusTypeDef USBH_MIDI_ClassRequest(USBH_HandleTypeDef *phost);
 static void MIDI_ProcessTransmission(USBH_HandleTypeDef *phost);
-static void MIDI_ProcessReception(USBH_HandleTypeDef *phost);
 
 USBH_ClassTypeDef MIDI_Class = {
   "MIDI",
@@ -200,7 +199,6 @@ void USBH_MIDI_StartReception(USBH_HandleTypeDef *phost, uint8_t* pbuff, uint32_
 }
 
 void USBH_MIDI_Retry(USBH_HandleTypeDef* phost){
-  HCD_HandleTypeDef* hhcd = (HCD_HandleTypeDef*)phost->pData;
   MIDI_HandleTypeDef* MIDI_Handle = (MIDI_HandleTypeDef*)phost->pActiveClass->pData;
 
   MIDI_Handle->pRxData = _rx_buffer;
@@ -294,33 +292,6 @@ static void URB_Done(USBH_HandleTypeDef* phost, uint32_t length){
     USBH_MIDI_ReceiveCallback(phost, total_length);
     // DONT submit URB immediately
     // instead wait for 1ms timer to resubmit
-  }
-}
-
-static void MIDI_ProcessReception(USBH_HandleTypeDef *phost){
-  MIDI_HandleTypeDef *MIDI_Handle = (MIDI_HandleTypeDef *) phost->pActiveClass->pData;
-  USBH_URBStateTypeDef URB_Status = USBH_URB_IDLE;
-  uint32_t length;
-  switch (MIDI_Handle->data_rx_state){
-    case MIDI_RECEIVE_DATA: // begins the reception from the USB low layer
-      (void)USBH_BulkReceiveData(phost,
-                                 MIDI_Handle->pRxData,
-                                 MIDI_Handle->InEpSize, // should be able to submit ->RxDataLength
-                                 MIDI_Handle->InPipe);
-      MIDI_Handle->data_rx_state = MIDI_RECEIVE_DATA_WAIT;
-      break;
-
-    case MIDI_RECEIVE_DATA_WAIT: // await data & process the reception on completion
-      // THIS IS NEVER CALLED NOW -> always via URB_Done [from IRQ]
-      URB_Status = USBH_LL_GetURBState(phost, MIDI_Handle->InPipe);
-      if(URB_Status == USBH_URB_DONE){
-        length = USBH_LL_GetLastXferSize(phost, MIDI_Handle->InPipe);
-        URB_Done(phost, length);
-      }
-      break;
-
-    default:
-      break;
   }
 }
 
