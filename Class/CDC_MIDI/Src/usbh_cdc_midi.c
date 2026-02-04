@@ -69,7 +69,6 @@ static USBH_StatusTypeDef Init(USBH_HandleTypeDef* phost){
   hCdcMidi->itf_cdc_ctrl = itf_cdc_ctrl;
   hCdcMidi->itf_cdc_data = itf_cdc_data;
   hCdcMidi->itf_midi = itf_midi;
-  printf("cdc+midi: interfaces 0x%x 0x%x 0x%x\n\r", (int)itf_cdc_ctrl, (int)itf_cdc_data, (int)itf_midi);
 
   // handle failure (must dealloc anything so far, and return FAIL)
   // SubDrivers will write their handles into the provided pointers

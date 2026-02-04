@@ -698,7 +698,6 @@ USBH_StatusTypeDef USBH_Process(USBH_HandleTypeDef *phost)
           }
 
           if(match){
-            printf("class: %i\n\r", class->ClassCode);
             phost->pActiveClass = class;
             break;
           }
