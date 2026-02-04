@@ -105,6 +105,7 @@ USBH_ClassTypeDef  USBH_msc =
 {
   "MSC",
   USB_MSC_CLASS,
+  NULL, // MatchInterface
   USBH_MSC_InterfaceInit,
   USBH_MSC_InterfaceDeInit,
   USBH_MSC_ClassRequest,

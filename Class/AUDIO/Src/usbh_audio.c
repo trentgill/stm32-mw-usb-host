@@ -166,6 +166,7 @@ USBH_ClassTypeDef  AUDIO_Class =
 {
   "AUDIO",
   AC_CLASS,
+  NULL, // MatchInterface
   USBH_AUDIO_InterfaceInit,
   USBH_AUDIO_InterfaceDeInit,
   USBH_AUDIO_ClassRequest,

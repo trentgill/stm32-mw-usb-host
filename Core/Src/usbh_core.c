@@ -84,8 +84,6 @@ static void USBH_Process_OS(void *argument);
 #endif /* (osCMSIS < 0x20000U) */
 #endif /* (USBH_USE_OS == 1U) */
 
-static int _matched_interface = -1;
-
 #define _CDC 0x02
 #define _AUDIO 0x01
 #define _HID 0x03
@@ -335,9 +333,11 @@ USBH_StatusTypeDef USBH_SelectInterface(USBH_HandleTypeDef *phost, uint8_t inter
   * @param  interface: Interface index
   * @retval Class Code
   */
-uint8_t USBH_GetActiveClass(USBH_HandleTypeDef *phost)
-{
-  return (phost->device.CfgDesc.Itf_Desc[_matched_interface].bInterfaceClass);
+uint8_t USBH_GetActiveClass(USBH_HandleTypeDef *phost){
+  if(phost->pActiveClass != NULL){
+    return phost->pActiveClass->ClassCode;
+  }
+  return 0xFF; // unknown class
 }
 
 
@@ -669,54 +669,41 @@ USBH_StatusTypeDef USBH_Process(USBH_HandleTypeDef *phost)
       break;
 
     case HOST_CHECK_CLASS:
-
-
-      if (phost->ClassNumber == 0U)
-      {
+      if (phost->ClassNumber == 0U){
         USBH_UsrLog("No Class has been registered.");
-      }
-      else
-      {
+      } else {
         phost->pActiveClass = NULL;
 
-        // because stm32 usb driver doesn't support multiple simultaneous classes
-        // we are just choosing the most powerful option that is available from the hosted device
-        const int midi_subclass = 0x03;
+        // FIX for ST lib where selected class depended on which class device reported first
+        // this solution let's us test a new Match() class function (for composite devices)
+        // and then falls back to select based on the priority of USBH_RegisterClass() calls
+        for(uint8_t idx = 0U; idx < USBH_MAX_NUM_SUPPORTED_CLASS; idx++){
+          USBH_ClassTypeDef* class = phost->pClass[idx];
+          uint8_t match = 0;
 
-        // values are negative so unmatched classes are lowest priority (ie zero)
-        const int class_heirarchy[4] = {[_CDC] = -3, [_AUDIO] = -2, [_HID] = -1};
-        // FIXME class 0xA is "CDC-Data" which might be what we want for crow, not 2.2
+          if(!class) continue; // next iteration because no class is registered at this index
 
-        _matched_interface = -1;
-        int top_result = 0xff;
-        for(int i=0; i<USBH_MAX_NUM_INTERFACES; i++){
-          USBH_InterfaceDescTypeDef* itf = &(phost->device.CfgDesc.Itf_Desc[i]);
-          int class = itf->bInterfaceClass;
-          // printf("c.s[%i]: %i.%i\n\r",i,class,itf->bInterfaceSubClass);
-          if(class <= _MAX_CLASS){ // ignore classes we don't understand
-            if(class_heirarchy[class] < top_result){
-              top_result = class_heirarchy[class];
-              _matched_interface = i;
-            } else if((class_heirarchy[class] == top_result) && (top_result == _AUDIO)){
-              int subclass = itf->bInterfaceSubClass;
-              if(subclass == midi_subclass){ // prefer midi subclass when audio device connected
-                _matched_interface = i;
+          if(class->Match){ // if class provides a match callback, check if it applies
+            if(class->Match(phost) == USBH_OK){
+              match = 1;
+            }
+          } else { // fallback to ST style basic matching
+            // match classes in registration order, against ANY of device's class codes
+            for(int i=0; i<phost->device.CfgDesc.bNumInterfaces; i++){
+              if(class->ClassCode == phost->device.CfgDesc.Itf_Desc[i].bInterfaceClass){
+                match = 1;
+                break;
               }
             }
           }
-        }
-        // printf("match_itf: %i\n\r",_matched_interface);
 
-        // we now know the interface we want to match
-        // so we must search to find it in the usb class list
-        int classix = 0;
-        for(classix=0; classix<USBH_MAX_NUM_SUPPORTED_CLASS; classix++){
-          // printf("hostclass[%i]: %i\n\r", classix, phost->pClass[classix]->ClassCode);
-          if(phost->pClass[classix]->ClassCode == phost->device.CfgDesc.Itf_Desc[_matched_interface].bInterfaceClass){
-            phost->pActiveClass = phost->pClass[classix];
+          if(match){
+            printf("class: %i\n\r", class->ClassCode);
+            phost->pActiveClass = class;
             break;
           }
         }
+        // END FIX
 
         if (phost->pActiveClass != NULL){
           if (phost->pActiveClass->Init(phost) == USBH_OK){

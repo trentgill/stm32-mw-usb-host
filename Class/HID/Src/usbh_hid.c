@@ -111,6 +111,7 @@ USBH_ClassTypeDef  HID_Class =
 {
   "HID",
   USB_HID_CLASS,
+  NULL, // MatchInterface
   USBH_HID_InterfaceInit,
   USBH_HID_InterfaceDeInit,
   USBH_HID_ClassRequest,
@@ -126,7 +127,6 @@ USBH_ClassTypeDef  HID_Class =
 /** @defgroup USBH_HID_CORE_Private_Functions
   * @{
   */
-
 
 /**
   * @brief  USBH_HID_InterfaceInit

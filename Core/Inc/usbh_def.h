@@ -457,6 +457,7 @@ typedef struct
 {
   const char          *Name;
   uint8_t              ClassCode;
+  USBH_StatusTypeDef(*Match)(struct _USBH_HandleTypeDef *phost);
   USBH_StatusTypeDef(*Init)(struct _USBH_HandleTypeDef *phost);
   USBH_StatusTypeDef(*DeInit)(struct _USBH_HandleTypeDef *phost);
   USBH_StatusTypeDef(*Requests)(struct _USBH_HandleTypeDef *phost);
