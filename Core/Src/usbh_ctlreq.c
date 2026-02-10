@@ -508,6 +508,12 @@ static USBH_StatusTypeDef USBH_ParseCfgDesc(USBH_HandleTypeDef *phost, uint8_t *
             pep = &cfg_desc->Itf_Desc[if_ix].Ep_Desc[ep_ix];
 
             status = USBH_ParseEPDesc(phost, pep, (uint8_t *)(void *)pdesc);
+            if(status == USBH_NOT_SUPPORTED
+            && phost->device.DevDesc.idVendor == 0x1935){
+              pep->wMaxPacketSize = 64; // override to valid length for FULL speed
+              printf("experimental elektron override for invalid usb descriptor\n\r");
+              status = USBH_OK;
+            }
 
             ep_ix++;
           }
