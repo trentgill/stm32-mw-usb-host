@@ -355,6 +355,13 @@ typedef enum
   HOST_ABORT_STATE,
 } HOST_StateTypeDef;
 
+/* Custom state machine to make driver asynchronous */
+typedef enum
+{
+  HOST_ASYNC_IDLE = 0U,
+  HOST_ASYNC_WAIT,
+} HOST_ASYNC_StateTypeDef;
+
 /* Following states are used for EnumerationState */
 typedef enum
 {
@@ -498,6 +505,9 @@ typedef struct _USBH_HandleTypeDef
 #endif
   uint32_t              os_msg;
 #endif /* (USBH_USE_OS == 1U) */
+  uint32_t async_timer;
+  HOST_ASYNC_StateTypeDef async_state;
+  USBH_StatusTypeDef async_status;
 
 } USBH_HandleTypeDef;
 

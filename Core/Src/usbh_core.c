@@ -166,6 +166,11 @@ USBH_StatusTypeDef USBH_Init(USBH_HandleTypeDef *phost,
 #endif /* (osCMSIS < 0x20000U) */
 #endif /* (USBH_USE_OS == 1U) */
 
+  /* setup sub-states for async driver */
+  phost->async_timer = 0;
+  phost->async_state = HOST_ASYNC_IDLE;
+  phost->async_status = USBH_OK;
+
   /* Initialize low level driver */
   (void)USBH_LL_Init(phost);
 
@@ -482,104 +487,136 @@ USBH_StatusTypeDef USBH_Process(USBH_HandleTypeDef *phost)
 
   /* check for Host pending port disconnect event */
   if ((phost->device.is_disconnected == 1U)
-      || (phost->device.is_ReEnumerated == 1U))
-  {
+      || (phost->device.is_ReEnumerated == 1U)){
     phost->gState = HOST_DEV_DISCONNECTED;
   }
 
-  switch (phost->gState)
-  {
+  switch(phost->gState){
+
     case HOST_IDLE :
+      if((phost->device.is_connected) != 0U){
+        switch(phost->async_state){
 
-      if ((phost->device.is_connected) != 0U)
-      {
-        USBH_UsrLog("USB Device Connected");
+        case HOST_ASYNC_IDLE:
+          USBH_UsrLog("USB Device Connected");
+          phost->async_timer = HAL_GetTick() + 200; // delay 200ms
+          phost->async_state = HOST_ASYNC_WAIT;
+          break;
 
-        /* Wait for 200 ms after connection */
-        phost->gState = HOST_DEV_WAIT_FOR_ATTACHMENT;
-        USBH_Delay(200U);
-        (void)USBH_LL_ResetPort(phost);
+        case HOST_ASYNC_WAIT:
+          /* Wait for 200 ms after connection */
+          if(HAL_GetTick() >= phost->async_timer){
+            // delay complete
+            phost->async_timer = 0;
+            phost->async_state = HOST_ASYNC_IDLE;
 
-        /* Make sure to start with Default address */
-        phost->device.address = USBH_ADDRESS_DEFAULT;
-        phost->Timeout = 0U;
+            phost->gState = HOST_DEV_WAIT_FOR_ATTACHMENT;
+            (void)USBH_LL_ResetPort(phost);
+
+            /* Make sure to start with Default address */
+            phost->device.address = USBH_ADDRESS_DEFAULT;
+            phost->Timeout = 0U;
 
 #if (USBH_USE_OS == 1U)
-        USBH_OS_PutMessage(phost, USBH_PORT_EVENT, 0U, 0U);
+            USBH_OS_PutMessage(phost, USBH_PORT_EVENT, 0U, 0U);
 #endif /* (USBH_USE_OS == 1U) */
+          }
+          break;
+        }
       }
       break;
 
     case HOST_DEV_WAIT_FOR_ATTACHMENT: /* Wait for Port Enabled */
-
-      if (phost->device.PortEnabled == 1U)
-      {
+      if (phost->device.PortEnabled == 1U){
         USBH_UsrLog("USB Device Reset Completed");
         phost->device.RstCnt = 0U;
         phost->gState = HOST_DEV_ATTACHED;
-      }
-      else
-      {
-        if (phost->Timeout > USBH_DEV_RESET_TIMEOUT)
-        {
-          phost->device.RstCnt++;
-          if (phost->device.RstCnt > 3U)
-          {
-            /* Buggy Device can't complete reset */
-            USBH_UsrLog("USB Reset Failed, Please unplug the Device.");
-            phost->gState = HOST_ABORT_STATE;
-          }
-          else
-          {
-            phost->gState = HOST_IDLE;
-          }
-        }
-        else
-        {
-          phost->Timeout += 10U;
-          USBH_Delay(10U);
-        }
-      }
-
 #if (USBH_USE_OS == 1U)
-      USBH_OS_PutMessage(phost, USBH_PORT_EVENT, 0U, 0U);
+        USBH_OS_PutMessage(phost, USBH_PORT_EVENT, 0U, 0U);
 #endif /* (USBH_USE_OS == 1U) */
+      } else {
+        switch(phost->async_state){
+
+        case HOST_ASYNC_IDLE:
+          if(phost->Timeout > USBH_DEV_RESET_TIMEOUT){
+            phost->device.RstCnt++;
+            if (phost->device.RstCnt > 3U){
+              /* Buggy Device can't complete reset */
+              USBH_UsrLog("USB Reset Failed, Please unplug the Device.");
+              phost->gState = HOST_ABORT_STATE;
+            } else {
+              phost->gState = HOST_IDLE;
+            }
+#if (USBH_USE_OS == 1U)
+            USBH_OS_PutMessage(phost, USBH_PORT_EVENT, 0U, 0U);
+#endif /* (USBH_USE_OS == 1U) */
+          } else {
+            phost->async_timer = HAL_GetTick() + 10; // delay 10ms
+            phost->async_state = HOST_ASYNC_WAIT;
+          }
+          break;
+
+        case HOST_ASYNC_WAIT:
+          if(HAL_GetTick() >= phost->async_timer){
+            // delay complete
+            phost->async_timer = 0;
+            phost->async_state = HOST_ASYNC_IDLE;
+            // DO WORK
+            phost->Timeout += 10U;
+#if (USBH_USE_OS == 1U)
+            USBH_OS_PutMessage(phost, USBH_PORT_EVENT, 0U, 0U);
+#endif /* (USBH_USE_OS == 1U) */
+          }
+          break;
+        }
+      }
       break;
 
     case HOST_DEV_ATTACHED :
+      switch(phost->async_state){
 
-      if (phost->pUser != NULL)
-      {
-        phost->pUser(phost, HOST_USER_CONNECTION);
-      }
+      case HOST_ASYNC_IDLE:
+        if (phost->pUser != NULL){
+          phost->pUser(phost, HOST_USER_CONNECTION);
+        }
+        phost->async_timer = HAL_GetTick() + 100; // delay 100ms
+        phost->async_state = HOST_ASYNC_WAIT;
+        break;
 
-      /* Wait for 100 ms after Reset */
-      USBH_Delay(100U);
+      case HOST_ASYNC_WAIT:
+        if(HAL_GetTick() >= phost->async_timer){
+          // delay complete
+          phost->async_timer = 0;
+          phost->async_state = HOST_ASYNC_IDLE;
 
-      phost->device.speed = (uint8_t)USBH_LL_GetSpeed(phost);
+          // continue task
+          phost->device.speed = (uint8_t)USBH_LL_GetSpeed(phost);
 
 #if defined (USBH_IN_NAK_PROCESS) && (USBH_IN_NAK_PROCESS == 1U)
-      phost->NakTimeout = USBH_NAK_SOF_COUNT;
+          phost->NakTimeout = USBH_NAK_SOF_COUNT;
 #endif /* defined (USBH_IN_NAK_PROCESS) && (USBH_IN_NAK_PROCESS == 1U) */
 
-      phost->gState = HOST_ENUMERATION;
+          phost->gState = HOST_ENUMERATION;
 
-      phost->Control.pipe_out = USBH_AllocPipe(phost, 0x00U);
-      phost->Control.pipe_in  = USBH_AllocPipe(phost, 0x80U);
+          phost->Control.pipe_out = USBH_AllocPipe(phost, 0x00U);
+          phost->Control.pipe_in  = USBH_AllocPipe(phost, 0x80U);
 
-      /* Open Control pipes */
-      (void)USBH_OpenPipe(phost, phost->Control.pipe_in, 0x80U,
-                          phost->device.address, phost->device.speed,
-                          USBH_EP_CONTROL, (uint16_t)phost->Control.pipe_size);
+          /* Open Control pipes */
+          (void)USBH_OpenPipe(phost, phost->Control.pipe_in, 0x80U,
+                              phost->device.address, phost->device.speed,
+                              USBH_EP_CONTROL, (uint16_t)phost->Control.pipe_size);
 
-      /* Open Control pipes */
-      (void)USBH_OpenPipe(phost, phost->Control.pipe_out, 0x00U,
-                          phost->device.address, phost->device.speed,
-                          USBH_EP_CONTROL, (uint16_t)phost->Control.pipe_size);
+          /* Open Control pipes */
+          (void)USBH_OpenPipe(phost, phost->Control.pipe_out, 0x00U,
+                              phost->device.address, phost->device.speed,
+                              USBH_EP_CONTROL, (uint16_t)phost->Control.pipe_size);
 
 #if (USBH_USE_OS == 1U)
-      USBH_OS_PutMessage(phost, USBH_PORT_EVENT, 0U, 0U);
+          USBH_OS_PutMessage(phost, USBH_PORT_EVENT, 0U, 0U);
 #endif /* (USBH_USE_OS == 1U) */
+        }
+        break;
+      }
       break;
 
     case HOST_ENUMERATION:
@@ -907,40 +944,54 @@ static USBH_StatusTypeDef USBH_HandleEnum(USBH_HandleTypeDef *phost)
       }
       break;
 
+
+
+
+
     case ENUM_SET_ADDR:
-      /* set address */
-      ReqStatus = USBH_SetAddress(phost, USBH_DEVICE_ADDRESS);
-      if (ReqStatus == USBH_OK)
-      {
-        USBH_Delay(2U);
-        phost->device.address = USBH_DEVICE_ADDRESS;
+      switch(phost->async_state){
+      case HOST_ASYNC_IDLE:
+        /* set address */
+        ReqStatus = USBH_SetAddress(phost, USBH_DEVICE_ADDRESS);
+        if(ReqStatus == USBH_OK){
+          phost->async_status = ReqStatus; // save state
+          phost->async_timer = HAL_GetTick() + 2; // delay 2ms
+          phost->async_state = HOST_ASYNC_WAIT;
+        } else if (ReqStatus == USBH_NOT_SUPPORTED){
+          USBH_ErrLog("Control error: Device Set Address request failed");
 
-        /* user callback for device address assigned */
-        USBH_UsrLog("Address (#%d) assigned.", phost->device.address);
-        phost->EnumState = ENUM_GET_CFG_DESC;
+          /* Buggy Device can't complete get device desc request */
+          USBH_UsrLog("Control error, Device not Responding Please unplug the Device.");
+          phost->gState = HOST_ABORT_STATE;
+          phost->EnumState = ENUM_IDLE;
+        }
+        break;
 
-        /* modify control channels to update device address */
-        (void)USBH_OpenPipe(phost, phost->Control.pipe_in, 0x80U,  phost->device.address,
-                            phost->device.speed, USBH_EP_CONTROL,
-                            (uint16_t)phost->Control.pipe_size);
+      case HOST_ASYNC_WAIT:
+        /* Wait for 200 ms after connection */
+        if(HAL_GetTick() >= phost->async_timer){
+          // delay complete
+          phost->async_timer = 0;
+          phost->async_state = HOST_ASYNC_IDLE;
 
-        /* Open Control pipes */
-        (void)USBH_OpenPipe(phost, phost->Control.pipe_out, 0x00U, phost->device.address,
-                            phost->device.speed, USBH_EP_CONTROL,
-                            (uint16_t)phost->Control.pipe_size);
-      }
-      else if (ReqStatus == USBH_NOT_SUPPORTED)
-      {
-        USBH_ErrLog("Control error: Device Set Address request failed");
+          // continue task
+          phost->device.address = USBH_DEVICE_ADDRESS;
 
-        /* Buggy Device can't complete get device desc request */
-        USBH_UsrLog("Control error, Device not Responding Please unplug the Device.");
-        phost->gState = HOST_ABORT_STATE;
-        phost->EnumState = ENUM_IDLE;
-      }
-      else
-      {
-        /* .. */
+          /* user callback for device address assigned */
+          USBH_UsrLog("Address (#%d) assigned.", phost->device.address);
+          phost->EnumState = ENUM_GET_CFG_DESC;
+
+          /* modify control channels to update device address */
+          (void)USBH_OpenPipe(phost, phost->Control.pipe_in, 0x80U,  phost->device.address,
+                              phost->device.speed, USBH_EP_CONTROL,
+                              (uint16_t)phost->Control.pipe_size);
+
+          /* Open Control pipes */
+          (void)USBH_OpenPipe(phost, phost->Control.pipe_out, 0x00U, phost->device.address,
+                              phost->device.speed, USBH_EP_CONTROL,
+                              (uint16_t)phost->Control.pipe_size);
+        }
+        break;
       }
       break;
 
