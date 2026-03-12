@@ -356,22 +356,31 @@ uint8_t USBH_GetActiveClass(USBH_HandleTypeDef *phost){
   * @retval interface index in the configuration structure
   * @note : (1)interface index 0xFF means interface index not found
   */
-uint8_t USBH_FindInterface(USBH_HandleTypeDef *phost, uint8_t Class, uint8_t SubClass, uint8_t Protocol)
-{
+uint8_t USBH_FindInterface(USBH_HandleTypeDef *phost, uint8_t Class, uint8_t SubClass, uint8_t Protocol){
   USBH_InterfaceDescTypeDef *pif;
   USBH_CfgDescTypeDef *pcfg;
-  uint8_t if_ix = 0U;
 
   pif = (USBH_InterfaceDescTypeDef *)NULL;
   pcfg = &phost->device.CfgDesc;
 
+/*
+// TESTING: print all interfaces
+  uint8_t if_ix = 0U;
   while (if_ix < USBH_MAX_NUM_INTERFACES)
   {
     pif = &pcfg->Itf_Desc[if_ix];
+    USBH_UsrLog("CSP[%i]: 0x%x 0x%x 0x%x.", if_ix, pif->bInterfaceClass, pif->bInterfaceSubClass, pif->bInterfaceProtocol);
+    if_ix++;
+  }
+*/
+
+  uint8_t if_ix = 0U;
+  while (if_ix < USBH_MAX_NUM_INTERFACES){
+    pif = &pcfg->Itf_Desc[if_ix];
     if (((pif->bInterfaceClass == Class) || (Class == 0xFFU)) &&
         ((pif->bInterfaceSubClass == SubClass) || (SubClass == 0xFFU)) &&
-        ((pif->bInterfaceProtocol == Protocol) || (Protocol == 0xFFU)))
-    {
+        ((pif->bInterfaceProtocol == Protocol) || (Protocol == 0xFFU))){
+      // USBH_UsrLog("Selected CSP[%i].",if_ix);
       return  if_ix;
     }
     if_ix++;
@@ -1038,7 +1047,7 @@ static USBH_StatusTypeDef USBH_HandleEnum(USBH_HandleTypeDef *phost)
       }
       else if (ReqStatus == USBH_NOT_SUPPORTED)
       {
-        USBH_ErrLog("Control error: Get Device configuration descriptor request failed");
+        USBH_ErrLog("Control error: Get Device full configuration descriptor request failed");
         phost->device.EnumCnt++;
         if (phost->device.EnumCnt > 3U)
         {
