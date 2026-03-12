@@ -39,11 +39,17 @@ static uint8_t in_pipe_number = 0xff;
 static USBH_HandleTypeDef* _phost_handle = NULL;
 static MIDI_HandleTypeDef* _hmidi = NULL;
 
+static uint8_t* _rx_buffer = NULL;
+static uint32_t _rx_buf_len = 0;
+
 // shared by standalone & subdriver
 static void _Init(USBH_HandleTypeDef *phost, MIDI_HandleTypeDef* hmidi, uint8_t interface){
   // stored global for URB handler
   _phost_handle = phost;
   _hmidi = hmidi;
+
+  // unset rx_buffer to ensure it waits for StartReception
+  _rx_buffer = NULL;
 
   /*Collect the notification endpoint address and length*/
   // note we have 2 possible endpoints for a sender/receiver pair
@@ -119,6 +125,7 @@ static void _DeInit(USBH_HandleTypeDef *phost, MIDI_HandleTypeDef* hmidi){
     (void)USBH_FreePipe(phost, hmidi->InPipe);
     hmidi->InPipe = 0U;     /* Reset the Channel as Free */
   }
+  _rx_buffer = NULL; // ensure no more triggers occur
   // invalidate global handles as device is not accessible [ie. hard fault]
   _phost_handle = NULL;
   _hmidi = NULL;
@@ -215,8 +222,6 @@ USBH_StatusTypeDef USBH_MIDI_Transmit(USBH_HandleTypeDef *phost, MIDI_HandleType
   return Status;
 }
 
-static uint8_t* _rx_buffer = NULL;
-static uint32_t _rx_buf_len = 0;
 void USBH_MIDI_StartReception(USBH_HandleTypeDef *phost, MIDI_HandleTypeDef* hmidi, uint8_t* pbuff, uint32_t length){
   _rx_buffer = pbuff;
   _rx_buf_len = length;
@@ -233,6 +238,7 @@ void USBH_MIDI_StartReception(USBH_HandleTypeDef *phost, MIDI_HandleTypeDef* hmi
 }
 
 void USBH_MIDI_Retry(USBH_HandleTypeDef* phost, MIDI_HandleTypeDef* hmidi){
+  if(_rx_buffer == NULL) return; // not initialized yet
   hmidi->pRxData = _rx_buffer;
   hmidi->RxDataLength = _rx_buf_len;
   hmidi->state = HMIDI_TRANSFER_DATA;
@@ -326,7 +332,7 @@ static void URB_Done(USBH_HandleTypeDef* phost, MIDI_HandleTypeDef* hmidi, uint3
 
 void USBH_MIDI_URBDoneCallback(int chnum, int xfer_count){
   if(chnum == in_pipe_number){
-    if(_phost_handle && _hmidi){ // ensure driver is still active & valid
+    if(_phost_handle && _hmidi && _rx_buffer){ // ensure driver is still active & valid
       URB_Done(_phost_handle, _hmidi, xfer_count);
     }
   }
