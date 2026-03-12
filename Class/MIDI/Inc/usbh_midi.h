@@ -130,7 +130,7 @@ void USBH_MIDI_ReceiveCallback(USBH_HandleTypeDef *phost, MIDI_HandleTypeDef* hm
 void USBH_MIDI_StartReception(USBH_HandleTypeDef *phost, MIDI_HandleTypeDef* hmidi, uint8_t* pbuff, uint32_t length);
 void USBH_MIDI_Retry(USBH_HandleTypeDef* phost, MIDI_HandleTypeDef* hmidi);
 
-void USBH_MIDI_URBDoneCallback(int chnum, int xfer_count);
+void USBH_MIDI_URBDoneCallback(int chnum);
 
 // SubDriver interface (for Composite Host)
 

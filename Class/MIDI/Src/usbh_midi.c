@@ -330,10 +330,10 @@ static void URB_Done(USBH_HandleTypeDef* phost, MIDI_HandleTypeDef* hmidi, uint3
   }
 }
 
-void USBH_MIDI_URBDoneCallback(int chnum, int xfer_count){
+void USBH_MIDI_URBDoneCallback(int chnum){
   if(chnum == in_pipe_number){
     if(_phost_handle && _hmidi && _rx_buffer){ // ensure driver is still active & valid
-      URB_Done(_phost_handle, _hmidi, xfer_count);
+      URB_Done(_phost_handle, _hmidi, USBH_LL_GetLastXferSize(_phost_handle, _hmidi->InPipe));
     }
   }
 }
