@@ -313,8 +313,14 @@ USBH_StatusTypeDef USBH_SelectInterface(USBH_HandleTypeDef *phost, uint8_t inter
 {
   USBH_StatusTypeDef status = USBH_OK;
 
-  if (interface < phost->device.CfgDesc.bNumInterfaces)
-  {
+  int override = 0;
+  if(phost->device.DevDesc.idVendor == 0x2367){
+    printf("WARN: override invalid interface count. T.E.\n\r");
+    override = 1;
+  }
+
+  if((interface < phost->device.CfgDesc.bNumInterfaces)
+    || override){
     phost->device.current_interface = interface;
     USBH_UsrLog("Switching to Interface (#%d)", interface);
     USBH_UsrLog("Class    : %xh", phost->device.CfgDesc.Itf_Desc[interface].bInterfaceClass);

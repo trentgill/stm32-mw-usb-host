@@ -507,13 +507,23 @@ static USBH_StatusTypeDef USBH_ParseCfgDesc(USBH_HandleTypeDef *phost, uint8_t *
             pep = &cfg_desc->Itf_Desc[if_ix].Ep_Desc[ep_ix];
 
             status = USBH_ParseEPDesc(phost, pep, (uint8_t *)(void *)pdesc);
-            if(status == USBH_NOT_SUPPORTED
-            && ((phost->device.DevDesc.idVendor == 0x1935) // elektron
-              ||(phost->device.DevDesc.idVendor == 0x2367) // TE (op1 original)
-                )){
-              pep->wMaxPacketSize = 64; // override to valid length for FULL speed
-              printf("experimental elektron / TE override for invalid usb descriptor\n\r");
-              status = USBH_OK;
+            if(status == USBH_NOT_SUPPORTED){ // EP parse failed
+              if(pif->bInterfaceClass == 0x1 && pif->bInterfaceSubClass == 0x3){ // check if it's MIDI
+                // apply hacks for known invalid descriptors
+                switch(phost->device.DevDesc.idVendor){
+                case 0x1935: // elektron
+                  printf("WARN: override invalid usb descriptor. Elektron.\n\r");
+                  pep->wMaxPacketSize = 64; // override to valid length for FULL speed
+                  status = USBH_OK;
+                  break;
+                case 0x2367: // teenage engineering
+                  printf("WARN: override invalid usb descriptor. T.E.\n\r");
+                  pep->wMaxPacketSize = 64; // override to valid length for FULL speed
+                  status = USBH_OK;
+                  break;
+                default: break;
+                }
+              }
             }
             ep_ix++;
           }
