@@ -106,7 +106,6 @@ USBH_StatusTypeDef USBH_Get_DevDesc(USBH_HandleTypeDef *phost, uint16_t length)
   status = USBH_GetDescriptor(phost,
                               USB_REQ_RECIPIENT_DEVICE | USB_REQ_TYPE_STANDARD,
                               USB_DESC_DEVICE, phost->device.Data, length);
-
   if (status == USBH_OK)
   {
     /* Commands successfully sent and Response Received */
@@ -509,12 +508,13 @@ static USBH_StatusTypeDef USBH_ParseCfgDesc(USBH_HandleTypeDef *phost, uint8_t *
 
             status = USBH_ParseEPDesc(phost, pep, (uint8_t *)(void *)pdesc);
             if(status == USBH_NOT_SUPPORTED
-            && phost->device.DevDesc.idVendor == 0x1935){
+            && ((phost->device.DevDesc.idVendor == 0x1935) // elektron
+              ||(phost->device.DevDesc.idVendor == 0x2367) // TE (op1 original)
+                )){
               pep->wMaxPacketSize = 64; // override to valid length for FULL speed
-              printf("experimental elektron override for invalid usb descriptor\n\r");
+              printf("experimental elektron / TE override for invalid usb descriptor\n\r");
               status = USBH_OK;
             }
-
             ep_ix++;
           }
         }
@@ -588,6 +588,7 @@ static USBH_StatusTypeDef USBH_ParseEPDesc(USBH_HandleTypeDef *phost, USBH_EpDes
       (ep_descriptor->wMaxPacketSize > USBH_MAX_EP_PACKET_SIZE) ||
       (ep_descriptor->wMaxPacketSize > USBH_MAX_DATA_BUFFER))
   {
+    // USBH_UsrLog("1: %i, %i, %i.",ep_descriptor->wMaxPacketSize, USBH_MAX_EP_PACKET_SIZE, USBH_MAX_DATA_BUFFER);
     status = USBH_NOT_SUPPORTED;
   }
 
@@ -597,6 +598,7 @@ static USBH_StatusTypeDef USBH_ParseEPDesc(USBH_HandleTypeDef *phost, USBH_EpDes
     {
       if (ep_descriptor->wMaxPacketSize > 512U)
       {
+        // USBH_UsrLog("2bulk: %i, %i.",ep_descriptor->wMaxPacketSize, 512);
         status = USBH_NOT_SUPPORTED;
       }
     }
@@ -604,6 +606,7 @@ static USBH_StatusTypeDef USBH_ParseEPDesc(USBH_HandleTypeDef *phost, USBH_EpDes
     {
       if (ep_descriptor->wMaxPacketSize > 64U)
       {
+        // USBH_UsrLog("2ctrl: %i, %i.",ep_descriptor->wMaxPacketSize, 64);
         status = USBH_NOT_SUPPORTED;
       }
     }
@@ -613,6 +616,7 @@ static USBH_StatusTypeDef USBH_ParseEPDesc(USBH_HandleTypeDef *phost, USBH_EpDes
     {
       if ((ep_descriptor->bInterval == 0U) || (ep_descriptor->bInterval > 0x10U))
       {
+        // USBH_UsrLog("2isoc: %i, %i.",ep_descriptor->bInterval, 0x10);
         status = USBH_NOT_SUPPORTED;
       }
     }
@@ -628,6 +632,7 @@ static USBH_StatusTypeDef USBH_ParseEPDesc(USBH_HandleTypeDef *phost, USBH_EpDes
     {
       if (ep_descriptor->wMaxPacketSize > 64U)
       {
+        // USBH_UsrLog("3bulk: %i, %i.",ep_descriptor->wMaxPacketSize, 64);
         status = USBH_NOT_SUPPORTED;
       }
     }
@@ -638,6 +643,7 @@ static USBH_StatusTypeDef USBH_ParseEPDesc(USBH_HandleTypeDef *phost, USBH_EpDes
           (ep_descriptor->bInterval > 0x10U) ||
           (ep_descriptor->wMaxPacketSize > 64U))
       {
+        // USBH_UsrLog("3isoc: %i, %i.",ep_descriptor->wMaxPacketSize, ep_descriptor->bInterval);
         status = USBH_NOT_SUPPORTED;
       }
     }
@@ -646,11 +652,13 @@ static USBH_StatusTypeDef USBH_ParseEPDesc(USBH_HandleTypeDef *phost, USBH_EpDes
     {
       if ((ep_descriptor->bInterval == 0U) || (ep_descriptor->wMaxPacketSize > 1023U))
       {
+        // USBH_UsrLog("3intr: %i, %i.",ep_descriptor->wMaxPacketSize, ep_descriptor->bInterval);
         status = USBH_NOT_SUPPORTED;
       }
     }
     else
     {
+      // USBH_UsrLog("fallback fail.");
       status = USBH_NOT_SUPPORTED;
     }
   }
@@ -678,6 +686,7 @@ static USBH_StatusTypeDef USBH_ParseEPDesc(USBH_HandleTypeDef *phost, USBH_EpDes
   }
   else
   {
+    // USBH_UsrLog("fallfallback fail.");
     status = USBH_NOT_SUPPORTED;
   }
 
