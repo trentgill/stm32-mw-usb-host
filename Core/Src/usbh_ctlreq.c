@@ -521,7 +521,11 @@ static USBH_StatusTypeDef USBH_ParseCfgDesc(USBH_HandleTypeDef *phost, uint8_t *
                   pep->wMaxPacketSize = 64; // override to valid length for FULL speed
                   status = USBH_OK;
                   break;
-                default: break;
+                default:
+                  printf("WARN: override invalid usb descriptor. Generic.\n\r");
+                  pep->wMaxPacketSize = 64; // override to valid length for FULL speed
+                  status = USBH_OK;
+                  break;
                 }
               }
             }
