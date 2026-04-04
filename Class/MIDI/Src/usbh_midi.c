@@ -222,7 +222,10 @@ USBH_StatusTypeDef USBH_MIDI_Transmit(USBH_HandleTypeDef *phost, MIDI_HandleType
   return Status;
 }
 
+// FIXME: should be part of the hmidi handle to allow re-entrance
+static int first_reception = 0;
 void USBH_MIDI_StartReception(USBH_HandleTypeDef *phost, MIDI_HandleTypeDef* hmidi, uint8_t* pbuff, uint32_t length){
+  first_reception = 1;
   _rx_buffer = pbuff;
   _rx_buf_len = length;
   // submit next URB
@@ -311,6 +314,19 @@ static void MIDI_ProcessTransmission(USBH_HandleTypeDef *phost, MIDI_HandleTypeD
 }
 
 static void URB_Done(USBH_HandleTypeDef* phost, MIDI_HandleTypeDef* hmidi, uint32_t length){
+  // abandon first packet if it's >=64 bytes
+  // fixes some weird initialization bug on devices that would leave descriptor info here
+  // this is *only* called after the driver is enabled & first receive request has been made
+  if(first_reception){
+    first_reception = 0;
+    if(length >= 64){
+      // abandon message [it's junk]
+      // return to idle state, and wait for next URB to query for real data
+      hmidi->data_rx_state = HMIDI_IDLE;
+      return;
+    }
+    // otherwise, process as normal!
+  }
   if(length > 0){ // increment pointers & immediately resubmit URB to get remaining data
     hmidi->RxDataLength -= length;
     hmidi->pRxData += length;
